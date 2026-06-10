@@ -19,25 +19,25 @@ export function SourceCard({ source, index }: SourceCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <article className="rounded-md border border-slate-200 bg-slate-50">
+    <article className="rounded-md border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800">
       <button
         type="button"
         onClick={() => setExpanded((current) => !current)}
         className="flex w-full items-start gap-3 px-3 py-3 text-left"
         aria-expanded={expanded}
       >
-        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-teal-700 ring-1 ring-slate-200">
+        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white dark:bg-zinc-700 text-teal-700 dark:text-teal-400 ring-1 ring-slate-200 dark:ring-zinc-600">
           <FileText className="h-4 w-4" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-xs font-semibold text-slate-500">
+          <span className="block text-xs font-semibold text-slate-500 dark:text-zinc-400">
             출처 {index + 1} · {formatPages(source)}
           </span>
-          <span className="mt-0.5 block truncate text-sm font-medium text-slate-900">
+          <span className="mt-0.5 block truncate text-sm font-medium text-slate-900 dark:text-zinc-100">
             {source.file_name}
           </span>
         </span>
-        <span className="mt-1 shrink-0 text-slate-500">
+        <span className="mt-1 shrink-0 text-slate-500 dark:text-zinc-400">
           {expanded ? (
             <ChevronUp className="h-4 w-4" aria-hidden="true" />
           ) : (
@@ -46,7 +46,7 @@ export function SourceCard({ source, index }: SourceCardProps) {
         </span>
       </button>
       {expanded ? (
-        <p className="border-t border-slate-200 px-3 pb-3 pt-2 text-sm leading-6 text-slate-700">
+        <p className="border-t border-slate-200 dark:border-zinc-700 px-3 pb-3 pt-2 text-sm leading-6 text-slate-700 dark:text-zinc-300">
           {source.snippet}
         </p>
       ) : null}
