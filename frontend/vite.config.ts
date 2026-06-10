@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     port: 6000,
     strictPort: true,
-    allowedHosts: ['proxy2.nipa2025.ktcloud.com'],
+    allowedHosts: ['proxy2.nipa2025.ktcloud.com', 'main1.betta-mackarel.ts.net'],
     proxy: {
       '/api': {
         target: 'http://localhost:8888',
