@@ -17,7 +17,7 @@ export function ChatMessage({ message, showTrace }: ChatMessageProps) {
       className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
     >
       {!isUser ? (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-teal-700 text-white">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-teal-700 dark:bg-teal-600 text-white">
           <Bot className="h-5 w-5" aria-hidden="true" />
         </div>
       ) : null}
@@ -25,8 +25,8 @@ export function ChatMessage({ message, showTrace }: ChatMessageProps) {
       <div
         className={`max-w-[min(100%,44rem)] rounded-md px-4 py-3 shadow-sm ${
           isUser
-            ? 'bg-slate-900 text-white'
-            : 'border border-slate-200 bg-white text-slate-900'
+            ? 'bg-slate-900 dark:bg-zinc-700 text-white'
+            : 'border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100'
         }`}
       >
         {isUser ? (
@@ -40,7 +40,7 @@ export function ChatMessage({ message, showTrace }: ChatMessageProps) {
             components={{
               a: ({ ...props }) => (
                 <a
-                  className="font-medium text-teal-700 underline underline-offset-2"
+                  className="font-medium text-teal-700 dark:text-teal-400 underline underline-offset-2"
                   target="_blank"
                   rel="noreferrer"
                   {...props}
@@ -48,13 +48,13 @@ export function ChatMessage({ message, showTrace }: ChatMessageProps) {
               ),
               blockquote: ({ ...props }) => (
                 <blockquote
-                  className="border-l-4 border-slate-200 pl-3 text-slate-700"
+                  className="border-l-4 border-slate-200 dark:border-zinc-600 pl-3 text-slate-700 dark:text-zinc-400"
                   {...props}
                 />
               ),
               code: ({ children, ...props }) => (
                 <code
-                  className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.85em] text-slate-900"
+                  className="rounded bg-slate-100 dark:bg-zinc-700 px-1.5 py-0.5 font-mono text-[0.85em] text-slate-900 dark:text-zinc-100"
                   {...props}
                 >
                   {children}
@@ -114,7 +114,7 @@ export function ChatMessage({ message, showTrace }: ChatMessageProps) {
 
         {!isUser && message.sources && message.sources.length > 0 ? (
           <div className="mt-4 space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
               참조한 출처
             </h3>
             <div className="space-y-2">
@@ -143,7 +143,7 @@ export function ChatMessage({ message, showTrace }: ChatMessageProps) {
       </div>
 
       {isUser ? (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-200 text-slate-700">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300">
           <UserRound className="h-5 w-5" aria-hidden="true" />
         </div>
       ) : null}
