@@ -12,3 +12,4 @@ frontend/.vite/
 .env
 .DS_Store
 .agents/
+Plan.md
