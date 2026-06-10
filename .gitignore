@@ -1,0 +1,14 @@
+backend/.venv/
+backend/data/chroma/
+backend/data/processed/
+backend/.pytest_cache/
+backend/**/__pycache__/
+backend/**/*.pyc
+
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+.env
+.DS_Store
+.agents/
