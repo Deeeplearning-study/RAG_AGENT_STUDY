@@ -101,7 +101,7 @@ class FailingReranker:
 
 class FakeLLM:
     def generate(self, prompt: str, model: str) -> str:
-        if "검색 질의 계획자" in prompt:
+        if "질의 계획자" in prompt:
             return json.dumps(
                 {
                     "query_variants": ["고열 치료 기준", "해열 치료 수분 공급"],

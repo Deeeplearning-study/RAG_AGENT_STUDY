@@ -6,3 +6,5 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8888
 frontend
 cd frontend
 npm run dev -- --host 0.0.0.0
+
+ollama launch claude --model gemma4
