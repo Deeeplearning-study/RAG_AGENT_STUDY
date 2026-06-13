@@ -211,6 +211,22 @@ def test_flow_reranks_retrieved_chunks_before_fallback_selection() -> None:
     assert all(call[1] == 6 for call in retriever.calls)
 
 
+def test_flow_returns_insufficient_evidence_when_all_below_min_rerank_score() -> None:
+    flow = create_rag_flow(
+        ScoredRetriever(),
+        settings=AgentSettings(max_selected_chunks=1, min_rerank_score=50.0),
+        enable_llm=False,
+        reranker=ReverseReranker(),
+    )
+
+    result = flow.run("고열 치료 기준은?", top_k=2)
+
+    assert "충분한 근거를 찾지 못했습니다" in result.answer
+    assert result.sources == []
+    assert result.agent_trace["reranked_chunk_count"] == 0
+    assert any("min_rerank_score" in warning for warning in result.agent_trace["warnings"])
+
+
 def test_flow_falls_back_to_vector_order_when_reranker_fails() -> None:
     flow = create_rag_flow(
         ScoredRetriever(),

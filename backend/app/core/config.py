@@ -30,6 +30,8 @@ class Settings(BaseModel):
     default_top_k: Annotated[int, Field(ge=1, le=50)] = 8
     enable_agent_trace: bool = True
 
+    min_rerank_score: float = 0.0
+
     reranker_enabled: bool = True
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     reranker_device: str = "auto"
@@ -92,6 +94,7 @@ def get_settings() -> Settings:
         "embedding_model": os.getenv("EMBEDDING_MODEL", "bge-m3"),
         "default_top_k": int(os.getenv("DEFAULT_TOP_K", "8")),
         "enable_agent_trace": _get_bool("ENABLE_AGENT_TRACE", True),
+        "min_rerank_score": float(os.getenv("RAG_MIN_RERANK_SCORE", "0.0")),
         "reranker_enabled": _get_bool("RERANKER_ENABLED", True),
         "reranker_model": os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"),
         "reranker_device": os.getenv("RERANKER_DEVICE", "auto"),
