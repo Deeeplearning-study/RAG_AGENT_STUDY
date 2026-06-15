@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -6,23 +7,24 @@ import {
   Loader2,
   RefreshCw,
   Server,
+  Upload,
 } from 'lucide-react';
 import { apiBaseUrl } from '../api/client';
 import type {
   DocumentSummary,
   HealthResponse,
-  IngestResponse,
+  UploadResponse,
 } from '../types/api';
 
 type DocumentStatusProps = {
   documents: DocumentSummary[];
   health: HealthResponse | null;
   error: string | null;
-  ingestResult: IngestResponse | null;
+  uploadResult: UploadResponse | null;
   isLoading: boolean;
-  isIndexing: boolean;
+  isUploading: boolean;
   onRefresh: () => void;
-  onReindex: () => void;
+  onUpload: (file: File) => void;
 };
 
 function formatDate(value?: string | null) {
@@ -78,18 +80,28 @@ export function DocumentStatus({
   documents,
   health,
   error,
-  ingestResult,
+  uploadResult,
   isLoading,
-  isIndexing,
+  isUploading,
   onRefresh,
-  onReindex,
+  onUpload,
 }: DocumentStatusProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const chunksTotal = documents.reduce(
     (total, document) => total + document.chunks,
     0,
   );
   const lastIndexedAt = latestIndexedAt(documents);
   const apiLabel = apiBaseUrl || '현재 호스트';
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset so selecting the same file again re-triggers onChange.
+    event.target.value = '';
+    if (file) {
+      onUpload(file);
+    }
+  };
 
   return (
     <aside className="flex h-full min-h-0 flex-col border-l border-slate-200 bg-white">
@@ -104,7 +116,7 @@ export function DocumentStatus({
           <button
             type="button"
             onClick={onRefresh}
-            disabled={isLoading || isIndexing}
+            disabled={isLoading || isUploading}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="상태 새로고침"
             title="상태 새로고침"
@@ -162,26 +174,32 @@ export function DocumentStatus({
           </div>
         ) : null}
 
-        {ingestResult ? (
+        {uploadResult ? (
           <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm leading-6 text-emerald-800">
-            재인덱싱 완료: 문서 {ingestResult.documents_indexed}/
-            {ingestResult.documents_total}개, 청크{' '}
-            {ingestResult.chunks_total.toLocaleString('ko-KR')}개
+            업로드 완료: {uploadResult.file_name} · {uploadResult.pages}쪽 · 청크{' '}
+            {uploadResult.chunks.toLocaleString('ko-KR')}개
           </div>
         ) : null}
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          className="hidden"
+          onChange={handleFileChange}
+        />
         <button
           type="button"
-          onClick={onReindex}
-          disabled={isIndexing}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
           className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          {isIndexing ? (
+          {isUploading ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            <Upload className="h-4 w-4" aria-hidden="true" />
           )}
-          {isIndexing ? '재인덱싱 중' : '강제 재인덱싱'}
+          {isUploading ? '업로드 및 청킹 중' : 'PDF 업로드'}
         </button>
 
         <div className="mt-5">

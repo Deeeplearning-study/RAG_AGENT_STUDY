@@ -57,6 +57,7 @@ class AgentSettings:
     max_query_variants: int = 3
     max_selected_chunks: int = 5
     min_score: float = 0.0
+    min_rerank_score: float = 0.0
     request_timeout_seconds: float = 45.0
     reranker_enabled: bool = True
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
@@ -76,6 +77,7 @@ class AgentSettings:
             max_query_variants=_int_env("MAX_QUERY_VARIANTS", cls.max_query_variants),
             max_selected_chunks=_int_env("MAX_SELECTED_CHUNKS", cls.max_selected_chunks),
             min_score=_float_env("RAG_MIN_SCORE", cls.min_score),
+            min_rerank_score=_float_env("RAG_MIN_RERANK_SCORE", cls.min_rerank_score),
             request_timeout_seconds=_float_env("OLLAMA_TIMEOUT_SECONDS", cls.request_timeout_seconds),
             reranker_enabled=_bool_env("RERANKER_ENABLED", cls.reranker_enabled),
             reranker_model=os.getenv("RERANKER_MODEL", cls.reranker_model),
@@ -248,7 +250,18 @@ class RAGFlowFacade:
         if not normalized:
             warnings.append("reranker returned no usable chunks; using vector score order")
             return chunks[:limit]
-        return normalized[:limit]
+        gated = [
+            chunk
+            for chunk in normalized
+            if chunk.rerank_score is None or chunk.rerank_score >= self.settings.min_rerank_score
+        ]
+        if not gated:
+            warnings.append(
+                f"all reranked chunks scored below min_rerank_score={self.settings.min_rerank_score}; "
+                "treating as insufficient evidence"
+            )
+            return []
+        return gated[:limit]
 
     def _select_evidence(
         self,
@@ -461,6 +474,7 @@ def _agent_settings_from_app_settings(settings: Any | None) -> AgentSettings:
         main_model=str(getattr(settings, "main_agent_model", AgentSettings.main_model)),
         sub_model=str(getattr(settings, "sub_agent_model", AgentSettings.sub_model)),
         default_top_k=int(getattr(settings, "default_top_k", AgentSettings.default_top_k)),
+        min_rerank_score=float(getattr(settings, "min_rerank_score", AgentSettings.min_rerank_score)),
         reranker_enabled=bool(getattr(settings, "reranker_enabled", AgentSettings.reranker_enabled)),
         reranker_model=str(getattr(settings, "reranker_model", AgentSettings.reranker_model)),
         reranker_device=str(getattr(settings, "reranker_device", AgentSettings.reranker_device)),

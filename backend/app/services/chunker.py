@@ -1,4 +1,12 @@
-"""Token-window chunking with page range preservation."""
+"""Boundary-aware chunking with page range preservation.
+
+Chunks are packed from line-level segments instead of a blind token window, so
+a chunk boundary never falls in the middle of a line. This keeps clinical
+guideline material intact - e.g. a "수축기 140 / 이완기 90" criterion line stays
+in one chunk, and a section heading stays attached to the lines that follow it.
+An oversized single line (longer than ``chunk_size``) falls back to a hard token
+window so it is never dropped.
+"""
 
 from __future__ import annotations
 
@@ -28,9 +36,10 @@ class TextChunk:
 
 
 @dataclass(frozen=True)
-class PageToken:
+class Segment:
     text: str
     page_number: int
+    token_count: int
 
 
 class TextChunker:
@@ -64,25 +73,83 @@ class TextChunker:
         file_name: str,
         file_hash: str,
     ) -> list[TextChunk]:
-        tokens = _page_tokens(pages)
-        if not tokens:
+        segments = _page_segments(pages)
+        if not segments:
             return []
 
-        chunks: list[TextChunk] = []
-        step = self.chunk_size - self.chunk_overlap
-        start = 0
-        chunk_index = 0
+        emitted: list[tuple[str, int, int]] = []
+        current: list[Segment] = []
+        current_tokens = 0
+        index = 0
 
+        while index < len(segments):
+            segment = segments[index]
+
+            if segment.token_count > self.chunk_size:
+                if current:
+                    emitted.append(_pack(current))
+                    current, current_tokens = [], 0
+                emitted.extend(self._split_oversized_segment(segment))
+                index += 1
+                continue
+
+            if current and current_tokens + segment.token_count > self.chunk_size:
+                emitted.append(_pack(current))
+                carry = self._overlap_tail(current)
+                if carry and _segments_tokens(carry) + segment.token_count > self.chunk_size:
+                    carry = []
+                current = carry
+                current_tokens = _segments_tokens(carry)
+                continue
+
+            current.append(segment)
+            current_tokens += segment.token_count
+            index += 1
+
+        if current:
+            emitted.append(_pack(current))
+
+        return self._to_chunks(emitted, document_id, file_name, file_hash)
+
+    def _overlap_tail(self, segments: list[Segment]) -> list[Segment]:
+        if self.chunk_overlap <= 0:
+            return []
+        tail: list[Segment] = []
+        tokens = 0
+        for segment in reversed(segments):
+            if tokens + segment.token_count > self.chunk_overlap:
+                break
+            tail.insert(0, segment)
+            tokens += segment.token_count
+        return tail
+
+    def _split_oversized_segment(self, segment: Segment) -> list[tuple[str, int, int]]:
+        tokens = TOKEN_PATTERN.findall(segment.text)
+        step = self.chunk_size - self.chunk_overlap
+        pieces: list[tuple[str, int, int]] = []
+        start = 0
         while start < len(tokens):
             end = min(start + self.chunk_size, len(tokens))
-            window = tokens[start:end]
-            text = _join_tokens(token.text for token in window)
-            page_start = min(token.page_number for token in window)
-            page_end = max(token.page_number for token in window)
-            chunk_id = _chunk_id(document_id, chunk_index, page_start, page_end, text)
+            text = _join_tokens(tokens[start:end])
+            if text:
+                pieces.append((text, segment.page_number, segment.page_number))
+            if end == len(tokens):
+                break
+            start += step
+        return pieces
+
+    def _to_chunks(
+        self,
+        emitted: list[tuple[str, int, int]],
+        document_id: str,
+        file_name: str,
+        file_hash: str,
+    ) -> list[TextChunk]:
+        chunks: list[TextChunk] = []
+        for chunk_index, (text, page_start, page_end) in enumerate(emitted):
             chunks.append(
                 TextChunk(
-                    chunk_id=chunk_id,
+                    chunk_id=_chunk_id(document_id, chunk_index, page_start, page_end, text),
                     document_id=document_id,
                     file_name=file_name,
                     page_start=page_start,
@@ -92,25 +159,39 @@ class TextChunker:
                     chunk_index=chunk_index,
                 )
             )
-
-            if end == len(tokens):
-                break
-            start += step
-            chunk_index += 1
-
         return chunks
 
 
-def _page_tokens(pages: Iterable[PdfPage]) -> list[PageToken]:
-    tokens: list[PageToken] = []
+def _page_segments(pages: Iterable[PdfPage]) -> list[Segment]:
+    segments: list[Segment] = []
     for page in pages:
-        for match in TOKEN_PATTERN.finditer(page.text):
-            tokens.append(PageToken(text=match.group(0), page_number=page.page_number))
-    return tokens
+        for line in page.text.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            token_count = len(TOKEN_PATTERN.findall(line))
+            if token_count == 0:
+                continue
+            segments.append(Segment(text=line, page_number=page.page_number, token_count=token_count))
+    return segments
+
+
+def _pack(segments: list[Segment]) -> tuple[str, int, int]:
+    text = _normalize_spaces(" ".join(segment.text for segment in segments))
+    page_start = min(segment.page_number for segment in segments)
+    page_end = max(segment.page_number for segment in segments)
+    return text, page_start, page_end
+
+
+def _segments_tokens(segments: list[Segment]) -> int:
+    return sum(segment.token_count for segment in segments)
 
 
 def _join_tokens(tokens: Iterable[str]) -> str:
-    text = " ".join(tokens)
+    return _normalize_spaces(" ".join(tokens))
+
+
+def _normalize_spaces(text: str) -> str:
     text = re.sub(r"\s+([,.;:!?%)\]\}])", r"\1", text)
     text = re.sub(r"([(\[\{])\s+", r"\1", text)
     return text.strip()
@@ -119,4 +200,3 @@ def _join_tokens(tokens: Iterable[str]) -> str:
 def _chunk_id(document_id: str, chunk_index: int, page_start: int, page_end: int, text: str) -> str:
     text_hash = sha256(text.encode("utf-8", errors="ignore")).hexdigest()[:16]
     return f"{document_id}:{chunk_index:06d}:{page_start}-{page_end}:{text_hash}"
-

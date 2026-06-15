@@ -4,6 +4,7 @@ import type {
   HealthResponse,
   IngestRequest,
   IngestResponse,
+  UploadResponse,
 } from '../types/api';
 
 export function getHealth() {
@@ -19,6 +20,16 @@ export function ingestDocuments(request: IngestRequest) {
   return apiFetch<IngestResponse>('/api/ingest', {
     method: 'POST',
     body: request,
+  });
+}
+
+export function uploadDocument(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiFetch<UploadResponse>('/api/upload', {
+    method: 'POST',
+    body: formData,
   });
 }
 

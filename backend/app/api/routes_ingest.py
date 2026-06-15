@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 
 from app.core.config import Settings, get_settings
-from app.core.errors import ServiceContractError
+from app.core.errors import ApiError, ServiceContractError
 from app.core.service_loader import call_service
-from app.models.documents import IngestRequest, IngestResponse
+from app.models.documents import IngestRequest, IngestResponse, UploadResponse
 
 router = APIRouter()
 
@@ -26,6 +26,41 @@ async def ingest_documents(
         processed_dir=settings.processed_dir,
     )
     return IngestResponse.model_validate(_normalize_ingest_result(result))
+
+
+@router.post("/upload", response_model=UploadResponse)
+async def upload_document(
+    file: UploadFile = File(...),
+    settings: Settings = Depends(get_settings),
+) -> UploadResponse:
+    file_name = file.filename or ""
+    if not file_name.lower().endswith(".pdf"):
+        raise ApiError(
+            status_code=400,
+            code="invalid_file_type",
+            message="PDF 파일만 업로드할 수 있습니다.",
+        )
+
+    content = await file.read()
+    if not content:
+        raise ApiError(
+            status_code=400,
+            code="empty_file",
+            message="빈 파일은 업로드할 수 없습니다.",
+        )
+
+    result = await call_service(
+        candidates=[
+            ("app.services.ingestion", "ingest_uploaded_pdf"),
+        ],
+        settings=settings,
+        file_name=file_name,
+        content=content,
+        pdf_dir=settings.pdf_dir,
+        chroma_dir=settings.chroma_dir,
+        processed_dir=settings.processed_dir,
+    )
+    return UploadResponse.model_validate(result)
 
 
 def _normalize_ingest_result(result: object) -> object:

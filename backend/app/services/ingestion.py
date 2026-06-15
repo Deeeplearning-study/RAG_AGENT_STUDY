@@ -10,7 +10,12 @@ import json
 
 from .chunker import TextChunker
 from .embeddings import OllamaEmbeddingsClient
-from .pdf_loader import PdfLoader, compute_file_hash, document_id_for_path
+from .pdf_loader import (
+    PdfLoader,
+    compute_file_hash,
+    default_pdf_dir,
+    document_id_for_path,
+)
 from .vector_store import ChromaVectorStore
 
 
@@ -73,68 +78,11 @@ class IngestionService:
         processed: list[DocumentIngestionStatus] = []
         skipped: list[DocumentIngestionStatus] = []
         failed: list[DocumentIngestionStatus] = []
+        buckets = {"processed": processed, "skipped": skipped, "failed": failed}
 
         for pdf_path in pdf_paths:
-            document_id = document_id_for_path(pdf_path)
-            file_name = pdf_path.name
-            try:
-                file_hash = compute_file_hash(pdf_path)
-                existing = self._read_document_metadata(document_id)
-                if not force and existing and existing.get("file_hash") == file_hash:
-                    skipped.append(
-                        DocumentIngestionStatus(
-                            document_id=document_id,
-                            file_name=file_name,
-                            file_hash=file_hash,
-                            status="skipped",
-                            chunk_count=int(existing.get("chunk_count") or 0),
-                            page_count=int(existing.get("page_count") or 0),
-                            low_text_pages=list(existing.get("low_text_pages") or []),
-                        )
-                    )
-                    continue
-
-                document = self.pdf_loader.load(pdf_path)
-                chunks = self.chunker.chunk_document(document)
-
-                self.vector_store.delete_document(document.document_id)
-                if chunks:
-                    embeddings = self.embeddings_client.embed_texts([chunk.text for chunk in chunks])
-                    self.vector_store.add_chunks(chunks, embeddings)
-
-                metadata = {
-                    "document_id": document.document_id,
-                    "file_name": document.file_name,
-                    "file_path": str(document.file_path),
-                    "file_hash": document.file_hash,
-                    "title": document.title,
-                    "page_count": document.page_count,
-                    "chunk_count": len(chunks),
-                    "low_text_pages": document.low_text_pages,
-                    "indexed_at": datetime.now(timezone.utc).isoformat(),
-                    "pdf_metadata": document.metadata,
-                }
-                self._write_document_metadata(document.document_id, metadata)
-                processed.append(
-                    DocumentIngestionStatus(
-                        document_id=document.document_id,
-                        file_name=document.file_name,
-                        file_hash=document.file_hash,
-                        status="processed",
-                        chunk_count=len(chunks),
-                        page_count=document.page_count,
-                        low_text_pages=document.low_text_pages,
-                    )
-                )
-            except Exception as exc:
-                failed.append(
-                    DocumentIngestionStatus(
-                        document_id=document_id,
-                        file_name=file_name,
-                        status="failed",
-                        error=str(exc),
-                    )
-                )
+            category, status = self._process_one(pdf_path, force=force)
+            buckets[category].append(status)
 
         self._write_index(processed=processed, skipped=skipped, failed=failed)
         return IngestionResult(
@@ -144,6 +92,70 @@ class IngestionService:
             total_pdfs=len(pdf_paths),
             force=force,
         )
+
+    def ingest_file(self, pdf_path: Path | str, force: bool = True) -> DocumentIngestionStatus:
+        """Ingest a single PDF file and return its status."""
+
+        self.processed_dir.mkdir(parents=True, exist_ok=True)
+        _, status = self._process_one(Path(pdf_path), force=force)
+        return status
+
+    def _process_one(
+        self, pdf_path: Path, force: bool
+    ) -> tuple[str, DocumentIngestionStatus]:
+        document_id = document_id_for_path(pdf_path)
+        file_name = pdf_path.name
+        try:
+            file_hash = compute_file_hash(pdf_path)
+            existing = self._read_document_metadata(document_id)
+            if not force and existing and existing.get("file_hash") == file_hash:
+                return "skipped", DocumentIngestionStatus(
+                    document_id=document_id,
+                    file_name=file_name,
+                    file_hash=file_hash,
+                    status="skipped",
+                    chunk_count=int(existing.get("chunk_count") or 0),
+                    page_count=int(existing.get("page_count") or 0),
+                    low_text_pages=list(existing.get("low_text_pages") or []),
+                )
+
+            document = self.pdf_loader.load(pdf_path)
+            chunks = self.chunker.chunk_document(document)
+
+            self.vector_store.delete_document(document.document_id)
+            if chunks:
+                embeddings = self.embeddings_client.embed_texts([chunk.text for chunk in chunks])
+                self.vector_store.add_chunks(chunks, embeddings)
+
+            metadata = {
+                "document_id": document.document_id,
+                "file_name": document.file_name,
+                "file_path": str(document.file_path),
+                "file_hash": document.file_hash,
+                "title": document.title,
+                "page_count": document.page_count,
+                "chunk_count": len(chunks),
+                "low_text_pages": document.low_text_pages,
+                "indexed_at": datetime.now(timezone.utc).isoformat(),
+                "pdf_metadata": document.metadata,
+            }
+            self._write_document_metadata(document.document_id, metadata)
+            return "processed", DocumentIngestionStatus(
+                document_id=document.document_id,
+                file_name=document.file_name,
+                file_hash=document.file_hash,
+                status="processed",
+                chunk_count=len(chunks),
+                page_count=document.page_count,
+                low_text_pages=document.low_text_pages,
+            )
+        except Exception as exc:
+            return "failed", DocumentIngestionStatus(
+                document_id=document_id,
+                file_name=file_name,
+                status="failed",
+                error=str(exc),
+            )
 
     def _metadata_path(self, document_id: str) -> Path:
         return self.processed_dir / f"{document_id}.json"
@@ -228,6 +240,46 @@ def ingest_documents(
             }
             for item in result.failed
         ],
+    }
+
+
+def ingest_uploaded_pdf(
+    file_name: str,
+    content: bytes,
+    settings: object | None = None,
+    pdf_dir: Path | str | None = None,
+    chroma_dir: Path | str | None = None,
+    processed_dir: Path | str | None = None,
+) -> dict[str, Any]:
+    """Save a single uploaded PDF into the pdf dir and ingest just that file."""
+
+    pdf_path = _resolve_backend_relative(pdf_dir or getattr(settings, "pdf_dir", None))
+    if pdf_path is None:
+        pdf_path = default_pdf_dir()
+    chroma_path = _resolve_backend_relative(chroma_dir or getattr(settings, "chroma_dir", None))
+    processed_path = _resolve_backend_relative(processed_dir or getattr(settings, "processed_dir", None))
+
+    embedding_model = getattr(settings, "embedding_model", None)
+    ollama_base_url = getattr(settings, "ollama_base_url", None)
+
+    pdf_path.mkdir(parents=True, exist_ok=True)
+    target = pdf_path / Path(file_name).name
+    target.write_bytes(content)
+
+    status = IngestionService(
+        pdf_loader=PdfLoader(pdf_dir=pdf_path),
+        embeddings_client=OllamaEmbeddingsClient(model=embedding_model, base_url=ollama_base_url),
+        vector_store=ChromaVectorStore(persist_dir=chroma_path),
+        processed_dir=processed_path,
+    ).ingest_file(target, force=True)
+
+    return {
+        "status": "failed" if status.status == "failed" else "completed",
+        "document_id": status.document_id,
+        "file_name": status.file_name,
+        "pages": status.page_count,
+        "chunks": status.chunk_count,
+        "error": status.error,
     }
 
 
