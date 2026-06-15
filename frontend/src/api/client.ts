@@ -69,15 +69,27 @@ export async function apiFetch<T>(
   options: ApiOptions = {},
 ): Promise<T> {
   const headers = new Headers(options.headers);
+  const isFormData =
+    typeof FormData !== 'undefined' && options.body instanceof FormData;
 
-  if (options.body !== undefined) {
+  // FormData lets the browser set the multipart content-type (with boundary).
+  if (options.body !== undefined && !isFormData) {
     headers.set('content-type', 'application/json');
+  }
+
+  let body: BodyInit | undefined;
+  if (options.body === undefined) {
+    body = undefined;
+  } else if (isFormData) {
+    body = options.body as FormData;
+  } else {
+    body = JSON.stringify(options.body);
   }
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body,
   });
 
   const payload = await parseResponse(response);

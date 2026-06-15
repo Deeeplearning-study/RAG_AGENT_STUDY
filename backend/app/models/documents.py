@@ -32,6 +32,15 @@ class IngestResponse(BaseModel):
     failures: list[dict[str, str | None]] = Field(default_factory=list)
 
 
+class UploadResponse(BaseModel):
+    status: Literal["completed", "failed"]
+    document_id: str = ""
+    file_name: str = ""
+    pages: int = Field(default=0, ge=0)
+    chunks: int = Field(default=0, ge=0)
+    error: str | None = None
+
+
 class DocumentResponse(BaseModel):
     document_id: str
     file_name: str

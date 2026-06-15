@@ -27,6 +27,15 @@ export type IngestResponse = {
   chunks_total: number;
 };
 
+export type UploadResponse = {
+  status: 'completed' | 'failed';
+  document_id: string;
+  file_name: string;
+  pages: number;
+  chunks: number;
+  error?: string | null;
+};
+
 export type ChatRequest = {
   message: string;
   top_k: number;

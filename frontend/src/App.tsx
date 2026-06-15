@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Bot, Loader2 } from 'lucide-react';
 import { sendChatMessage } from './api/chat';
-import { getDocuments, getHealth, ingestDocuments } from './api/documents';
+import { getDocuments, getHealth, uploadDocument } from './api/documents';
 import { ChatInput } from './components/ChatInput';
 import { ChatMessage } from './components/ChatMessage';
 import { DocumentStatus } from './components/DocumentStatus';
@@ -9,7 +9,7 @@ import type {
   ChatMessage as ChatMessageType,
   DocumentSummary,
   HealthResponse,
-  IngestResponse,
+  UploadResponse,
 } from './types/api';
 
 const DEFAULT_TOP_K = 8;
@@ -50,11 +50,11 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
-  const [ingestResult, setIngestResult] = useState<IngestResponse | null>(null);
+  const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isStatusLoading, setIsStatusLoading] = useState(false);
-  const [isIndexing, setIsIndexing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -95,19 +95,22 @@ export default function App() {
     });
   }, [messages, isChatLoading]);
 
-  const handleReindex = async () => {
-    setIsIndexing(true);
+  const handleUpload = async (file: File) => {
+    setIsUploading(true);
     setStatusError(null);
-    setIngestResult(null);
+    setUploadResult(null);
 
     try {
-      const result = await ingestDocuments({ force: true });
-      setIngestResult(result);
+      const result = await uploadDocument(file);
+      setUploadResult(result);
+      if (result.status === 'failed') {
+        setStatusError(result.error ?? '업로드한 PDF 처리에 실패했습니다.');
+      }
       await refreshStatus();
     } catch (error) {
       setStatusError(resolveError(error));
     } finally {
-      setIsIndexing(false);
+      setIsUploading(false);
     }
   };
 
@@ -217,11 +220,11 @@ export default function App() {
             documents={documents}
             health={health}
             error={statusError}
-            ingestResult={ingestResult}
+            uploadResult={uploadResult}
             isLoading={isStatusLoading}
-            isIndexing={isIndexing}
+            isUploading={isUploading}
             onRefresh={refreshStatus}
-            onReindex={handleReindex}
+            onUpload={handleUpload}
           />
         </div>
       </main>
