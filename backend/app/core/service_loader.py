@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException
+from fastapi.concurrency import run_in_threadpool
 
 from app.core.errors import (
     ApiError,
@@ -19,7 +20,12 @@ async def call_service(candidates: list[ServiceCandidate], **kwargs: Any) -> Any
     service = _resolve_service(candidates)
     selected_kwargs = _select_kwargs(service, kwargs)
     try:
-        result = service(**selected_kwargs)
+        if inspect.iscoroutinefunction(service):
+            return await service(**selected_kwargs)
+        # Sync services must not run on the event loop: they block it and,
+        # for CrewAI, kickoff() refuses to run inside a running loop. Offload
+        # to a worker thread (the standard FastAPI pattern for sync handlers).
+        result = await run_in_threadpool(service, **selected_kwargs)
         if inspect.isawaitable(result):
             return await result
         return result

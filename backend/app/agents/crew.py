@@ -422,7 +422,13 @@ def answer_question(
     agent_settings = _agent_settings_from_app_settings(settings)
     retrieval_service = _default_retrieval_service(settings, agent_settings)
     reranker_service = _default_reranker_service(agent_settings)
-    result = create_rag_flow(retrieval_service, settings=agent_settings, reranker=reranker_service).run(message, top_k=top_k)
+    from .crew_ai import CrewRAGOrchestrator
+
+    result = CrewRAGOrchestrator(
+        retrieval_service,
+        settings=agent_settings,
+        reranker=reranker_service,
+    ).run(message, top_k=top_k)
     payload = result.to_chat_response()
     if not include_agent_trace:
         payload["agent_trace"] = None
