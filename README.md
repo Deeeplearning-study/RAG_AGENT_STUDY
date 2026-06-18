@@ -12,8 +12,6 @@
 - Embedding model: `bge-m3`
 - Reranker model: `BAAI/bge-reranker-v2-m3`
 
-API 계약과 런타임 흐름은 `Plan.md`에 정의되어 있습니다. 이 저장소에는 프로젝트 계획, 개발용 persistent agent brief, `pdf/` 원본 문서, Vite 기반 frontend, FastAPI backend, 환경 변수 예시 파일이 포함되어 있습니다.
-
 ## 사전 준비
 
 앱을 실행하기 전에 아래 도구를 설치하세요.
